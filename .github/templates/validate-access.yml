@@ -1,0 +1,72 @@
+name: Validate Access Rights
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/validate-access.yml"
+
+jobs:
+  validate-permissions:
+    name: Check PAT Permissions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Validate GH_PAT_TOKEN Scope
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT_TOKEN }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::GH_PAT_TOKEN is missing! Please add it to Repository Secrets."
+            exit 1
+          fi
+
+          echo "::add-mask::$GH_TOKEN"
+
+          echo "[INFO] Testing PAT permissions..."
+
+          # 1. Test Metadata Read (Self-check)
+          echo "[TEST] Verifying metadata read access..."
+          USER_LOGIN=$(gh api user --jq .login)
+          if [ $? -ne 0 ]; then
+            echo "::error::Failed to read user metadata. Ensure 'Metadata' permission is Read-only."
+            exit 1
+          fi
+          echo "[PASS] Authenticated as: $USER_LOGIN"
+
+          # 2. Test Repo List (Discovery check)
+          echo "[TEST] Verifying repository listing access..."
+          REPO_COUNT=$(gh repo list --limit 1 --json name --jq 'length')
+          if [ $? -ne 0 ]; then
+            echo "::error::Failed to list repositories. Ensure 'All repositories' access is selected."
+            exit 1
+          fi
+          echo "[PASS] Repository listing successful."
+
+          # 3. Test Secret Write (Write check - Dry Run)
+          echo "[TEST] Verifying secret write access..."
+
+          # Check if our test secret accidentally already exists
+          if gh secret list --json name --jq '.[].name' | grep -q "^VALIDATION_TEST_SECRET$"; then
+             echo "[WARN] VALIDATION_TEST_SECRET already exists. Attempting to overwrite..."
+          fi
+
+          echo "test-value" | gh secret set VALIDATION_TEST_SECRET
+          if [ $? -ne 0 ]; then
+            echo "::error::Failed to write secret. Ensure 'Actions secrets' permission is Read and Write."
+            exit 1
+          fi
+
+          # Clean up
+          gh secret delete VALIDATION_TEST_SECRET
+          if [ $? -ne 0 ]; then
+             echo "[WARN] Failed to delete test secret. You may need to delete VALIDATION_TEST_SECRET manually."
+          else
+             echo "[PASS] Secret write and delete successful."
+          fi
+
+          echo "----------------------------------------"
+          echo "[SUCCESS] GH_PAT_TOKEN has all required permissions!"
+          echo "----------------------------------------"

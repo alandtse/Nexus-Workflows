@@ -1,0 +1,43 @@
+name: "Refresh Nexus Session"
+description: "Refreshes the Nexus Mods session cookie"
+
+inputs:
+  nexus-session-cookie:
+    description: "Nexus Mods session cookie"
+    required: true
+
+outputs:
+  refreshed:
+    description: "Whether the refresh was successful"
+    value: ${{ steps.refresh.outputs.REFRESHED }}
+  new-cookie:
+    description: "The refreshed session cookie"
+    value: ${{ steps.refresh.outputs.NEW_COOKIE }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Refresh Nexus session cookie
+      id: refresh
+      env:
+        UNEX_SESSION_COOKIE: ${{ inputs.nexus-session-cookie }}
+      run: |
+        Write-Output "[INFO] Attempting to refresh Nexus session cookie..."
+        # unex refresh will update the environment variable UNEX_SESSION_COOKIE in the current process
+        unex refresh
+
+        if ($LASTEXITCODE -eq 0) {
+          Write-Output "[SUCCESS] Cookie refresh successful"
+          # Securely capture the updated cookie from the environment variable
+          $newCookie = $env:UNEX_SESSION_COOKIE
+
+          # Mask the new cookie immediately to prevent it from appearing in logs
+          Write-Output "::add-mask::$newCookie"
+
+          Write-Output "REFRESHED=true" >> $env:GITHUB_OUTPUT
+          Write-Output "NEW_COOKIE=$newCookie" >> $env:GITHUB_OUTPUT
+        } else {
+          Write-Output "[ERROR] Cookie refresh failed - stored cookie may be expired"
+          Write-Output "REFRESHED=false" >> $env:GITHUB_OUTPUT
+        }
+      shell: pwsh

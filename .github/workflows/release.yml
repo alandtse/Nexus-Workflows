@@ -1,0 +1,59 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  release:
+    name: Semantic Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    if: |
+      github.repository_owner == 'alandtse' &&
+      !contains(github.event.head_commit.message, '[skip ci]')
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      - name: Semantic Release
+        id: release
+        uses: cycjimmy/semantic-release-action@v6
+        with:
+          extra_plugins: |
+            @semantic-release/changelog
+            @semantic-release/git
+            @semantic-release/npm
+          semantic_version: 25
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update major version floating tag
+        if: steps.release.outputs.new_release_published == 'true'
+        run: |
+          $version = "${{ steps.release.outputs.new_release_version }}"
+          $major = $version.Split('.')[0]
+          $tagName = "v$major"
+
+          Write-Output "[INFO] Moving floating tag $tagName to v$version"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Force update the floating tag
+          git tag -f $tagName "v$version"
+          git push origin $tagName --force
+        shell: pwsh

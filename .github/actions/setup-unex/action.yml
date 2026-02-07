@@ -1,0 +1,21 @@
+name: "Setup BUTR.NexusUploader"
+description: "Sets up .NET and installs BUTR.NexusUploader"
+
+inputs:
+  dotnet-version:
+    description: ".NET version to use"
+    default: "8.x.x"
+    required: false
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v5
+      with:
+        dotnet-version: ${{ inputs.dotnet-version }}
+
+    - name: Install BUTR.NexusUploader
+      run: |
+        dotnet tool install -g BUTR.NexusUploader
+      shell: pwsh

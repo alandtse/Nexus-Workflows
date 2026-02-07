@@ -1,0 +1,235 @@
+name: Upload to Nexus Mods
+
+on:
+  workflow_call:
+    inputs:
+      nexus_game_id:
+        description: "Nexus Mods game ID (e.g., skyrimspecialedition)"
+        required: true
+        type: string
+      nexus_mod_id:
+        description: "Your mod ID number"
+        required: true
+        type: string
+      artifact_name:
+        description: "Name of the GitHub artifact to download"
+        required: false
+        type: string
+        default: ""
+      tag_name:
+        description: "GitHub Release tag to download from (if artifact_name is empty)"
+        required: false
+        type: string
+        default: ""
+      mod_version:
+        description: "Version number for this release"
+        required: true
+        type: string
+      mod_filename:
+        description: "Filename for the mod (without extension)"
+        required: false
+        type: string
+        default: ""
+      changelog:
+        description: "Changelog text for this version"
+        required: false
+        type: string
+        default: ""
+      file_description:
+        description: "Description for the file on Nexus"
+        required: false
+        type: string
+        default: "See mod description for details."
+      previous_file:
+        description: 'Previous file ID to replace, or "auto" for automatic'
+        required: false
+        type: string
+        default: "auto"
+      check_existing:
+        description: "Check if version exists on Nexus and skip if found (defaults to false)"
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      UNEX_NEXUSMODS_SESSION_COOKIE:
+        required: true
+      UNEX_APIKEY:
+        required: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  upload:
+    name: Upload to Nexus
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    environment:
+      name: NexusMods
+      url: https://www.nexusmods.com/${{ inputs.nexus_game_id }}/mods/${{ inputs.nexus_mod_id }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download artifact
+        if: inputs.artifact_name != ''
+        uses: actions/download-artifact@v7
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: ./artifact
+
+      - name: Download release asset
+        if: inputs.artifact_name == '' && inputs.tag_name != ''
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          New-Item -ItemType Directory -Force -Path ./artifact
+          # Use gh to find assets that look like archives (zip, 7z, rar)
+          gh release download "${{ inputs.tag_name }}" --dir ./artifact --pattern "*.7z" --pattern "*.zip" --pattern "*.rar"
+
+          # If no specific patterns matched, try to download all assets and filter later
+          if ((Get-ChildItem ./artifact).Count -eq 0) {
+             gh release download "${{ inputs.tag_name }}" --dir ./artifact
+          }
+
+      - name: Determine filename
+        id: filename
+        run: |
+          $filename = "${{ inputs.mod_filename }}"
+          if (-not $filename) {
+            # Extract from artifact name or use default
+            $filename = "${{ inputs.artifact_name }}" -replace '_[\d.]+$', ''
+          }
+          Write-Output "FILENAME=$filename" >> $env:GITHUB_OUTPUT
+          Write-Output "[INFO] Using filename: $filename"
+
+      - name: Find artifact file
+        id: find_file
+        run: |
+          $files = Get-ChildItem -Path ./artifact -Recurse -File
+
+          if ($files.Count -eq 0) {
+            Write-Error "[ERROR] No files found in artifact"
+            exit 1
+          }
+
+          # Look for .7z, .zip, or .rar files first
+          $archiveFile = $files | Where-Object { $_.Extension -match '\.(7z|zip|rar)$' } | Select-Object -First 1
+
+          if ($archiveFile) {
+            Write-Output "FILE_PATH=$($archiveFile.FullName)" >> $env:GITHUB_OUTPUT
+            Write-Output "[INFO] Found archive: $($archiveFile.Name)"
+          } else {
+            # Use first file if no archive found
+            Write-Output "FILE_PATH=$($files[0].FullName)" >> $env:GITHUB_OUTPUT
+            Write-Output "[INFO] Using file: $($files[0].Name)"
+          }
+
+      - name: Setup UNEX
+        uses: alandtse/nexus-workflows/.github/actions/setup-unex@main
+
+      - name: Refresh Nexus session cookie
+        uses: alandtse/nexus-workflows/.github/actions/refresh-nexus@main
+        with:
+          nexus-session-cookie: ${{ secrets.UNEX_NEXUSMODS_SESSION_COOKIE }}
+
+      - name: Check if version already exists on Nexus
+        id: check_exists
+        if: inputs.check_existing
+        env:
+          UNEX_APIKEY: ${{ secrets.UNEX_APIKEY }}
+          UNEX_GAME: ${{ inputs.nexus_game_id }}
+          UNEX_MODID: ${{ inputs.nexus_mod_id }}
+        run: |
+          $version = "${{ inputs.mod_version }}"
+          Write-Output "[INFO] Checking if version $version exists on Nexus..."
+
+          $apiUrl = "https://api.nexusmods.com/v1/games/$env:UNEX_GAME/mods/$env:UNEX_MODID/files.json"
+
+          try {
+            $response = Invoke-RestMethod -Uri $apiUrl -Headers @{ "apikey" = "$env:UNEX_APIKEY" }
+            $existingVersions = $response.files.version
+
+            if ($existingVersions -contains $version) {
+              Write-Output "::notice::[INFO] Version $version already exists on Nexus. Skipping upload."
+              Write-Output "EXISTS=true" >> $env:GITHUB_OUTPUT
+            } else {
+              Write-Output "[INFO] Version $version not found on Nexus."
+              Write-Output "EXISTS=false" >> $env:GITHUB_OUTPUT
+            }
+          } catch {
+            Write-Warning "[WARN] Failed to check existing versions: $_"
+            Write-Output "EXISTS=false" >> $env:GITHUB_OUTPUT
+          }
+        shell: pwsh
+
+      - name: Upload to Nexus Mods
+        if: steps.check_exists.outputs.EXISTS != 'true'
+        env:
+          UNEX_SESSION_COOKIE: ${{ secrets.UNEX_NEXUSMODS_SESSION_COOKIE }}
+          UNEX_APIKEY: ${{ secrets.UNEX_APIKEY }}
+          UNEX_GAME: ${{ inputs.nexus_game_id }}
+          UNEX_MODID: ${{ inputs.nexus_mod_id }}
+          UNEX_DEBUG: true
+          UNEX_FILENAME: ${{ steps.filename.outputs.FILENAME }}
+          UNEX_FILEVERSION: ${{ inputs.mod_version }}
+          UNEX_FILEDESCRIPTION: ${{ inputs.file_description }}
+          UNEX_PREVIOUSFILE: ${{ inputs.previous_file }}
+        run: |
+          $file = "${{ steps.find_file.outputs.FILE_PATH }}"
+
+          Write-Output "----------------------------------------"
+          Write-Output "[INFO] Uploading to Nexus Mods"
+          Write-Output "----------------------------------------"
+          Write-Output "Game: $env:UNEX_GAME"
+          Write-Output "Mod ID: $env:UNEX_MODID"
+          Write-Output "Version: $version"
+          Write-Output "File: $(Split-Path -Leaf $file)"
+          Write-Output "----------------------------------------"
+
+          unex upload $env:UNEX_MODID $file
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "[ERROR] Upload failed"
+            exit 1
+          }
+
+          Write-Output "[SUCCESS] Upload successful"
+
+      - name: Upload changelog
+        if: steps.check_exists.outputs.EXISTS != 'true' && inputs.changelog != ''
+        env:
+          UNEX_SESSION_COOKIE: ${{ secrets.UNEX_NEXUSMODS_SESSION_COOKIE }}
+          UNEX_APIKEY: ${{ secrets.UNEX_APIKEY }}
+          UNEX_GAME: ${{ inputs.nexus_game_id }}
+          UNEX_MODID: ${{ inputs.nexus_mod_id }}
+          UNEX_FILEVERSION: ${{ inputs.mod_version }}
+          UNEX_CHANGELOG: ${{ inputs.changelog }}
+        run: |
+          Write-Output "[INFO] Uploading changelog for version $env:UNEX_FILEVERSION..."
+
+          unex changelog $env:UNEX_FILEVERSION
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Warning "[WARN] Changelog upload failed"
+          } else {
+            Write-Output "[SUCCESS] Changelog uploaded"
+          }
+
+      - name: Summary
+        if: always()
+        env:
+          GAME_ID: ${{ inputs.nexus_game_id }}
+          MOD_ID: ${{ inputs.nexus_mod_id }}
+          VERSION: ${{ inputs.mod_version }}
+        run: |
+          Write-Output "----------------------------------------"
+          Write-Output "[INFO] Upload Summary"
+          Write-Output "----------------------------------------"
+          Write-Output "Mod: https://www.nexusmods.com/$env:GAME_ID/mods/$env:MOD_ID"
+          Write-Output "Version: $env:VERSION"
+          Write-Output "----------------------------------------"

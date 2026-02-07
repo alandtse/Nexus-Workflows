@@ -1,0 +1,38 @@
+name: "Check Nexus Credentials"
+description: "Checks if the Nexus Mods credentials are valid without refreshing"
+inputs:
+  nexus-session-cookie:
+    description: "Nexus Mods session cookie"
+    required: true
+  nexus-api-key:
+    description: "Nexus Mods API Key"
+    required: true
+
+runs:
+  using: "composite"
+  steps:
+    - name: Validate session cookie
+      env:
+        UNEX_SESSION_COOKIE: ${{ inputs.nexus-session-cookie }}
+      run: |
+        Write-Output "[INFO] Validating Nexus session cookie..."
+        unex check --session-cookie "$env:UNEX_SESSION_COOKIE"
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error "[ERROR] Session cookie validation failed"
+          exit 1
+        }
+        Write-Output "[SUCCESS] Session cookie is valid"
+      shell: pwsh
+
+    - name: Validate API Key
+      env:
+        UNEX_APIKEY: ${{ inputs.nexus-api-key }}
+      run: |
+        Write-Output "[INFO] Validating Nexus API Key..."
+        unex check --key "$env:UNEX_APIKEY"
+        if ($LASTEXITCODE -ne 0) {
+          Write-Error "[ERROR] API Key validation failed"
+          exit 1
+        }
+        Write-Output "[SUCCESS] API Key is valid"
+      shell: pwsh

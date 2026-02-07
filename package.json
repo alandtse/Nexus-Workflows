@@ -1,0 +1,55 @@
+{
+  "name": "nexus-workflows",
+  "version": "1.0.0",
+  "description": "Centralized Nexus Mods workflow and secret management",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alandtse/nexus-workflows.git"
+  },
+  "keywords": [
+    "nexus-mods",
+    "github-actions",
+    "workflow",
+    "automation",
+    "skyrim",
+    "fallout"
+  ],
+  "author": "alandtse",
+  "license": "AGPL-3.0-or-later",
+  "bugs": {
+    "url": "https://github.com/alandtse/nexus-workflows/issues"
+  },
+  "homepage": "https://github.com/alandtse/nexus-workflows#readme",
+  "release": {
+    "branches": [
+      "main"
+    ],
+    "plugins": [
+      "@semantic-release/commit-analyzer",
+      "@semantic-release/release-notes-generator",
+      [
+        "@semantic-release/changelog",
+        {
+          "changelogFile": "CHANGELOG.md"
+        }
+      ],
+      [
+        "@semantic-release/npm",
+        {
+          "npmPublish": false
+        }
+      ],
+      [
+        "@semantic-release/git",
+        {
+          "assets": [
+            "CHANGELOG.md",
+            "package.json"
+          ],
+          "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+        }
+      ],
+      "@semantic-release/github"
+    ]
+  }
+}
