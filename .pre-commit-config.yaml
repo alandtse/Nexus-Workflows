@@ -15,7 +15,7 @@ repos:
         types_or: [yaml, json, markdown]
 
   - repo: https://github.com/rhysd/actionlint
-    rev: v1.7.10
+    rev: v1.7.11
     hooks:
       - id: actionlint
 ci:
