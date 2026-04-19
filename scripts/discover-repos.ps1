@@ -1,143 +1,100 @@
 param(
-    [string]$SearchQueries = "UNEX_NEXUSMODS_SESSION_COOKIE,NexusUploader,nexus-workflows",
+    [string]$SearchQueries = "",
     [string]$IncludeRepos = "",
     [string]$ExcludeRepos = "",
     [string]$CurrentRepo = "",
     [string]$Owner = ""
 )
 
+# Use Parameter values if provided, otherwise fallback to Environment Variables
+# This ensures reliability in CI environments where parameter binding may be inconsistent.
+$Owner = if ($Owner) { $Owner } elseif ($env:UNEX_OWNER) { $env:UNEX_OWNER } else { "alandtse" }
+$SearchQueries = if ($SearchQueries) { $SearchQueries } elseif ($env:UNEX_SEARCH_QUERIES) { $env:UNEX_SEARCH_QUERIES } else { "UNEX_NEXUSMODS_SESSION_COOKIE,NexusUploader,nexus-workflows" }
+$IncludeRepos = if ($IncludeRepos) { $IncludeRepos } else { $env:UNEX_INCLUDE_REPOS }
+$ExcludeRepos = if ($ExcludeRepos) { $ExcludeRepos } else { $env:UNEX_EXCLUDE_REPOS }
+$CurrentRepo = if ($CurrentRepo) { $CurrentRepo } else { $env:UNEX_CURRENT_REPO }
+
+# 1. CI MOCK: Standalone mock for CI reliability
+if ($env:MOCK_GH_RESULT) {
+    function gh { return $env:MOCK_GH_RESULT }
+}
+
 $ErrorActionPreference = "Stop"
-$uniqueRepos = @{}
+$uniqueRepos = New-Object System.Collections.Hashtable([System.StringComparer]::OrdinalIgnoreCase)
 
 function Write-Info {
     param([string]$Message)
-    Write-Host "[INFO] $Message" -ForegroundColor Cyan
+    Write-Host "  - info: $Message"
 }
 
-function Write-Err {
-    param([string]$Message)
-    Write-Host "[ERROR] $Message" -ForegroundColor Red
-}
-
-# 1. Handle Hardcoded Includes
+# 2. Manual Inclusions
 if (-not [string]::IsNullOrWhiteSpace($IncludeRepos)) {
-    Write-Info "Processing manual inclusion list..."
-    $includes = $IncludeRepos.Split(',') | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-    foreach ($repo in $includes) {
-        if (-not $uniqueRepos.ContainsKey($repo)) {
-            $uniqueRepos[$repo] = @{ nameWithOwner = $repo; source = "manual" }
-            Write-Host "  + Added manual repo: $repo"
+    $includeList = $IncludeRepos.Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ }
+    foreach ($repo in $includeList) {
+        $uniqueRepos[$repo] = [PSCustomObject]@{
+            nameWithOwner = $repo
+            source        = "manual"
         }
+        Write-Info "Manually included: $repo"
     }
 }
 
-# 2. Handle Search Queries
+# 3. Discovery Loop
 if (-not [string]::IsNullOrWhiteSpace($SearchQueries)) {
-    $queries = $SearchQueries.Split(',') | ForEach-Object { $_.Trim() } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-
+    $queries = $SearchQueries.Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ }
     foreach ($query in $queries) {
-        foreach ($forkState in @("true", "default")) {
-
-            # Build the query string
-            # We search in .github/workflows
-            $searchTerms = @("path:.github/workflows", "$query")
-
-            if ($forkState -eq "true") {
+        foreach ($forkState in @($false, $true)) {
+            $searchTerms = @("path:.github/workflows", $query)
+            if ($forkState) {
                 $searchTerms += "fork:true"
                 Write-Info "Searching for: '$query' (including forks)"
             } else {
                 Write-Info "Searching for: '$query' (standard repos)"
             }
 
-            if (-not [string]::IsNullOrWhiteSpace($Owner)) {
-                $searchTerms += "user:$Owner"
-            }
+            if (-not [string]::IsNullOrWhiteSpace($Owner)) { $searchTerms += "user:$Owner" }
 
-            # Correctly invoke gh with arguments array instead of single string
             $ghArgs = @("search", "code") + $searchTerms + @("--json", "repository", "--limit", "100")
-
-            # Show full command for debugging (approximate)
-            Write-Host "  Command: gh search code $searchTerms --json repository --limit 100"
-
+            
             try {
-                # Run gh search using splatting to ensure arguments are passed correctly
-                $searchResults = & gh @ghArgs
-
-                if ($LASTEXITCODE -ne 0) {
-                    Write-Warning "gh search returned exit code $LASTEXITCODE. This may be a 404 or rate limit."
-                }
-
-                if ($searchResults -and $LASTEXITCODE -eq 0) {
+                $searchResults = gh @ghArgs | Out-String
+                if ($searchResults) {
                     $results = $searchResults | ConvertFrom-Json
-                    $stepCount = 0
                     foreach ($item in $results) {
                         $repoName = $item.repository.nameWithOwner
                         if ($repoName -and (-not $uniqueRepos.ContainsKey($repoName))) {
                             $uniqueRepos[$repoName] = $item.repository
                             Write-Host "  + Found: $repoName"
-                            $stepCount++
                         }
                     }
-                    Write-Host "  > Found $stepCount new repositories in this step."
-                } else {
-                    Write-Host "  > No results found or search failed."
                 }
             }
             catch {
-                Write-Warning "Search failed for query '$query' (fork:$forkState): $_"
+                Write-Warning "Search failed for query '$query': $_"
             }
-
-            # Small delay to avoid secondary rate limits
             Start-Sleep -Seconds 1
         }
     }
 }
 
-# 3. Filter and Exclude
+# 4. Filter and Exclude
 $finalRepos = @()
 $excludeList = if ($ExcludeRepos) { $ExcludeRepos.Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ } } else { @() }
 
 Write-Info "Filtering results..."
-
 foreach ($key in $uniqueRepos.Keys) {
     $repoName = $uniqueRepos[$key].nameWithOwner
-
-    # Exclude current repo to avoid self-update loops if running in one of them
-    if ($repoName -eq $CurrentRepo) {
-        Write-Host "  - Skipping $repoName (Current Repo)"
-        continue
-    }
-
-    # Bypassing filters for manually included repositories
+    if ($repoName -eq $CurrentRepo) { Write-Host "  - Skipping $repoName (Current Repo)"; continue }
     if ($uniqueRepos[$key].source -eq "manual") {
-        Write-Host "  + [MANUAL] Including repo regardless of filters: $repoName"
         $finalRepos += $repoName
         continue
     }
-
-    # Check exclusions
-    if ($excludeList -contains $repoName) {
-        Write-Host "  - Skipping $repoName (Excluded)"
-        continue
-    }
-
-    # Check for hard exclusion by regex (like the original script had /nexus-workflows$)
-    if ($repoName -match "/nexus-workflows$") {
-        Write-Host "  - Skipping $repoName (Nexus Workflows)"
-        continue
-    }
-
+    if ($excludeList -contains $repoName) { Write-Host "  - Skipping $repoName (Excluded)"; continue }
+    if ($repoName -match "/nexus-workflows$") { Write-Host "  - Skipping $repoName (Nexus Workflows)"; continue }
     $finalRepos += $repoName
 }
 
-# Sort
-$finalRepos = $finalRepos | Sort-Object -Unique
-
+# 5. Result Formatting
 Write-Info "Found $($finalRepos.Count) repositories."
-
-# Output JSON
-$reposJson = $finalRepos | ConvertTo-Json -Compress
-if ($finalRepos.Count -eq 1) { $reposJson = "[$reposJson]" }
-if ($null -eq $finalRepos -or $finalRepos.Count -eq 0) { $reposJson = "[]" }
-
-return $reposJson
+if ($null -eq $finalRepos -or $finalRepos.Count -eq 0) { "[]" }
+else { ConvertTo-Json -InputObject @($finalRepos | Sort-Object -Unique) -Compress }

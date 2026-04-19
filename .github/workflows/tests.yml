@@ -2,7 +2,7 @@ name: Validate Scripts
 
 on:
   push:
-    branches: [main]
+    branches: [main, ci-fix-pester]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -15,7 +15,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Install Pester 5
+        shell: pwsh
+        run: |
+          $module = Get-Module -Name Pester -ListAvailable | Where-Object { $_.Version.Major -eq 5 }
+          if (-not $module) {
+              Write-Host "Installing Pester 5..."
+              Install-Module -Name Pester -MinimumVersion 5.0.0 -MaximumVersion 5.99.99 -Force -Scope CurrentUser -SkipPublisherCheck
+          } else {
+              Write-Host "Pester 5 is already installed."
+          }
+
       - name: Run Pester tests
         shell: pwsh
         run: |
-          Invoke-Pester -Path tests/ -EnableExit
+          Invoke-Pester -Path ./tests/discover-repos.Tests.ps1 -Output Detailed

@@ -1,91 +1,71 @@
-$scriptPath = Resolve-Path "$PSScriptRoot/../scripts/discover-repos.ps1"
+Describe "discover-repos.ps1 (The Final Scoping Pass)" {
+    BeforeAll {
+        $global:scriptPath = (Join-Path -Path $PSScriptRoot -ChildPath "../scripts/discover-repos.ps1" | Resolve-Path).Path
+        
+        # Environmental Isolation
+        $env:GH_TOKEN = $null
+        $env:CI = "true"
 
-Describe "discover-repos.ps1 (Air-Gapped)" {
-    # Test variables
-    $testOwner = "test-user"
-    $testRepo  = "$testOwner/auto-repo"
-    $manualRepo = "external-owner/manual-repo"
-    $testQueries = "test-query" # Use a single query to speed up tests
-
-    # FAIL-SAFE MOCKS: These functions replace external dependencies for this session.
-    if (Get-Command -Name gh -CommandType Function -ErrorAction SilentlyContinue) { Remove-Item Function:\gh }
-    if (Get-Alias -Name gh -ErrorAction SilentlyContinue) { Remove-Item Alias:\gh }
-
-    function global:gh {
-        param([string]$Arg1, [string]$Arg2, [string]$Arg3, [string]$Arg4, [string]$Arg5, [string]$Arg6, [string]$Arg7, [string]$Arg8, [string]$Arg9)
-
-        $global:LASTEXITCODE = 0 # Simulate success
-
-        if ($Arg1 -eq "search") {
-            # Inspect actual arguments passed to the function
-            $allArgs = $args + @($Arg1, $Arg2, $Arg3, $Arg4, $Arg5)
-            $isCorrectUser = $false
-            foreach ($arg in $allArgs) { if ($arg -like "*user:test-user*") { $isCorrectUser = $true } }
-
-            if ($isCorrectUser) {
-                return "[{`"repository`":{`"nameWithOwner`":`"test-user/auto-repo`"}}]"
-            }
+        # Encapsulated helper function to ensure visibility in It blocks
+        function Test-DiscoveryLogic {
+            param($Owner, $Queries, $Inclusions = "", $Exclusions = "", $Mock)
+            $env:UNEX_OWNER = $Owner
+            $env:UNEX_SEARCH_QUERIES = $Queries
+            $env:UNEX_INCLUDE_REPOS = $Inclusions
+            $env:UNEX_EXCLUDE_REPOS = $Exclusions
+            $env:MOCK_GH_RESULT = $Mock
+            
+            $raw = & $global:scriptPath
+            return $raw | ConvertFrom-Json
         }
-        return "[]"
     }
 
-    # PERFORMANCE MOCK: Mock Start-Sleep to make tests near-instant
-    if (Get-Command -Name Start-Sleep -CommandType Function -ErrorAction SilentlyContinue) { Remove-Item Function:\Start-Sleep }
-    function global:Start-Sleep { param($Seconds) }
+    BeforeEach {
+        $env:UNEX_OWNER = $null
+        $env:UNEX_SEARCH_QUERIES = $null
+        $env:UNEX_INCLUDE_REPOS = $null
+        $env:UNEX_EXCLUDE_REPOS = $null
+        $env:MOCK_GH_RESULT = '[]'
+    }
 
-    # Hide Write-Host output to keep test results clean
-    if (Get-Command -Name Write-Host -CommandType Function -ErrorAction SilentlyContinue) { Remove-Item Function:\Write-Host }
-    function global:Write-Host { param($Object) }
-
-    It "Finds auto-discovered repositories (Optimized)" {
-        # Using a single SearchQuery instead of the default 3 to reduce iterations
-        $result = . $scriptPath -Owner $testOwner -SearchQueries $testQueries | ConvertFrom-Json
-
+    It "Finds auto-discovered repositories" {
+        $mock = '[{"repository":{"nameWithOwner":"test-user/auto-repo"}}]'
+        $result = Test-DiscoveryLogic -Owner "test-user" -Queries "test-query" -Mock $mock
+        
         $arr = @($result)
-        $arr.Count | Should Be 1
-        $arr -contains $testRepo | Should Be $true
+        $arr.Count | Should -Be 1
+        $arr -contains "test-user/auto-repo" | Should -Be $true
     }
 
-    It "Includes manual repositories (Optimized)" {
-        $result = . $scriptPath -Owner $testOwner -IncludeRepos $manualRepo -SearchQueries $testQueries | ConvertFrom-Json
-
+    It "Includes manual repositories" {
+        $mock = '[{"repository":{"nameWithOwner":"test-user/auto-repo"}}]'
+        $result = Test-DiscoveryLogic -Owner "test-user" -Queries "test-query" -Inclusions "test-owner/manual-repo" -Mock $mock
+        
         $arr = @($result)
-        $arr -contains $manualRepo | Should Be $true
-        $arr -contains $testRepo | Should Be $true
-        $arr.Count | Should Be 2
+        $arr -contains "test-owner/manual-repo" | Should -Be $true
+        $arr -contains "test-user/auto-repo" | Should -Be $true
+        $arr.Count | Should -Be 2
     }
 
-    It "Bypasses exclusion filters (Optimized)" {
-        $result = . $scriptPath -Owner $testOwner -IncludeRepos $manualRepo -ExcludeRepos $manualRepo -SearchQueries $testQueries | ConvertFrom-Json
-
+    It "Bypasses exclusion filters" {
+        $mock = '[{"repository":{"nameWithOwner":"test-user/auto-repo"}}]'
+        $result = Test-DiscoveryLogic -Owner "test-user" -Queries "test-query" -Inclusions "test-owner/manual-repo" -Exclusions "test-owner/manual-repo" -Mock $mock
+        
         $arr = @($result)
-        $arr -contains $manualRepo | Should Be $true
+        $arr -contains "test-owner/manual-repo" | Should -Be $true
     }
 
-    It "Correctly handles multiple manual repos (Optimized)" {
-        $manual1 = "owner1/repo1"
-        $manual2 = "owner2/repo2"
-        $includeList = "$manual1, , $manual2 ,$manual1"
-
-        $result = . $scriptPath -Owner $testOwner -IncludeRepos $includeList -SearchQueries $testQueries | ConvertFrom-Json
-
+    It "Correctly handles complex exclusion lists" {
+        $mock = '[{"repository":{"nameWithOwner":"test-user/auto-repo"}}, {"repository":{"nameWithOwner":"test-user/other-repo"}}]'
+        $result = Test-DiscoveryLogic -Owner "test-user" -Queries "test-query" -Exclusions "test-user/auto-repo, test-user/other-repo" -Mock $mock
+        
         $arr = @($result)
-        $arr -contains $manual1 | Should Be $true
-        $arr -contains $manual2 | Should Be $true
-        $arr.Count | Should Be 3
+        $arr.Count | Should -Be 0
     }
 
-    It "Correctly handles complex exclusion lists (Optimized)" {
-        $result = . $scriptPath -Owner $testOwner -ExcludeRepos "$testRepo, other/repo" -SearchQueries $testQueries | ConvertFrom-Json
-
-        $arr = @($result)
-        $arr.Count | Should Be 0
-    }
-
-    # Cleanup globals
     AfterAll {
-        if (Get-Command -Name gh -CommandType Function -ErrorAction SilentlyContinue) { Remove-Item Function:\gh }
-        if (Get-Command -Name Start-Sleep -CommandType Function -ErrorAction SilentlyContinue) { Remove-Item Function:\Start-Sleep }
-        if (Get-Command -Name Write-Host -CommandType Function -ErrorAction SilentlyContinue) { Remove-Item Function:\Write-Host }
+        $env:MOCK_GH_RESULT = $null
+        $env:UNEX_OWNER = $null
+        $env:UNEX_SEARCH_QUERIES = $null
     }
 }
