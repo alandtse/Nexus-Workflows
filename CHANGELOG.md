@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/alandtse/nexus-workflows/compare/v1.0.0...v1.1.0) (2026-04-19)
+
+
+### Features
+
+* improve repo discovery, visibility, and variable/secret support ([af5e313](https://github.com/alandtse/nexus-workflows/commit/af5e3134053b15977b58b5f6923fdd6db819d7ef))
+
 # 1.0.0 (2026-02-07)
 
 
