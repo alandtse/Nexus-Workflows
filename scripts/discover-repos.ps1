@@ -63,7 +63,11 @@ if (-not [string]::IsNullOrWhiteSpace($SearchQueries)) {
                 # Run gh search using splatting to ensure arguments are passed correctly
                 $searchResults = & gh @ghArgs
 
-                if ($searchResults) {
+                if ($LASTEXITCODE -ne 0) {
+                    Write-Warning "gh search returned exit code $LASTEXITCODE. This may be a 404 or rate limit."
+                }
+
+                if ($searchResults -and $LASTEXITCODE -eq 0) {
                     $results = $searchResults | ConvertFrom-Json
                     $stepCount = 0
                     foreach ($item in $results) {
@@ -76,19 +80,22 @@ if (-not [string]::IsNullOrWhiteSpace($SearchQueries)) {
                     }
                     Write-Host "  > Found $stepCount new repositories in this step."
                 } else {
-                    Write-Host "  > No results found."
+                    Write-Host "  > No results found or search failed."
                 }
             }
             catch {
                 Write-Warning "Search failed for query '$query' (fork:$forkState): $_"
             }
+
+            # Small delay to avoid secondary rate limits
+            Start-Sleep -Seconds 1
         }
     }
 }
 
 # 3. Filter and Exclude
 $finalRepos = @()
-$excludeList = if ($ExcludeRepos) { $ExcludeRepos.Split(',') | ForEach-Object { $_.Trim() } } else { @() }
+$excludeList = if ($ExcludeRepos) { $ExcludeRepos.Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ } } else { @() }
 
 Write-Info "Filtering results..."
 
@@ -98,6 +105,13 @@ foreach ($key in $uniqueRepos.Keys) {
     # Exclude current repo to avoid self-update loops if running in one of them
     if ($repoName -eq $CurrentRepo) {
         Write-Host "  - Skipping $repoName (Current Repo)"
+        continue
+    }
+
+    # Bypassing filters for manually included repositories
+    if ($uniqueRepos[$key].source -eq "manual") {
+        Write-Host "  + [MANUAL] Including repo regardless of filters: $repoName"
+        $finalRepos += $repoName
         continue
     }
 

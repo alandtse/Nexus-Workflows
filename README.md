@@ -93,9 +93,16 @@ gh repo create <your-username>/nexus-workflows --public --source=. --remote=orig
 
 ### Excluding or Including Repositories
 
-- **Exclude (Controller Repo)**: Add a variable or secret named `UNEX_EXCLUDE_REPOS` with a comma-separated list of repos (e.g., `alandtse/my-special-mod,alandtse/other-mod`).
-- **Include (Controller Repo)**: Add a variable or secret named `UNEX_INCLUDE_REPOS` with a comma-separated list of repos to forcibly include, even if they aren't discovered by search (e.g. `alandtse/manual-repo`).
-- **Decentralized (Mod Repo)**: Add a secret named `UNEX_SKIP` (with any value) to the mod repository itself. The controller will see this and skip distribution.
+You can manage your repository list using either GitHub **Variables** or **Secrets**. The logic automatically checks both:
+
+- **Option A: GitHub Variables (Recommended)**: Use these if you want to see the actual repository names in your GitHub Action logs. This is best for transparency and ease of debugging.
+- **Option B: GitHub Secrets**: Use these if you want the repository names to be masked (shown as `***`) in your logs. This is best for maximum privacy.
+
+To configure these:
+
+- **Include**: Add `UNEX_INCLUDE_REPOS` with a comma-separated list of repos to forcibly include (e.g., `alandtse/manual-repo`).
+- **Exclude**: Add `UNEX_EXCLUDE_REPOS` with a comma-separated list of repos to ignore (e.g., `alandtse/my-special-mod`).
+- **Decentralized skip**: Add a secret named `UNEX_SKIP` (with any value) in a mod repository itself to opt it out of centralized management.
 
 ### Daily Usage
 

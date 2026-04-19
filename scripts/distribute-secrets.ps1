@@ -29,7 +29,7 @@ if ([string]::IsNullOrWhiteSpace($ReposJson) -or $ReposJson -eq "[]") {
 }
 
 $repos = $ReposJson | ConvertFrom-Json
-$excludeList = if ($ExcludeRepos) { $ExcludeRepos.Split(',') | ForEach-Object { $_.Trim() } } else { @() }
+$excludeList = if ($ExcludeRepos) { $ExcludeRepos.Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ } } else { @() }
 
 Write-Output "----------------------------------------"
 if ($DryRun) {
