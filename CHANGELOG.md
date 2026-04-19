@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/alandtse/nexus-workflows/compare/v1.1.0...v1.2.0) (2026-04-19)
+
+
+### Features
+
+* add Pester tests and CI/CD integration ([3d065ce](https://github.com/alandtse/nexus-workflows/commit/3d065ce37f1d0b35df79e4a65905a7d8dd6e7cfd))
+
 # [1.1.0](https://github.com/alandtse/nexus-workflows/compare/v1.0.0...v1.1.0) (2026-04-19)
 
 
