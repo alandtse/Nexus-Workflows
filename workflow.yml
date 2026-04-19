@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       force_update:
-        description: "Force update even if Nexus cookie refresh fails"
+        description: "Force update even if refresh succeeds"
         type: boolean
-        default: false
+        default: true
         required: false
       dry_run:
         description: "Test discovery without updating secrets"

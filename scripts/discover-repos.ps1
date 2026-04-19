@@ -72,7 +72,7 @@ if (-not [string]::IsNullOrWhiteSpace($SearchQueries)) {
                     $stepCount = 0
                     foreach ($item in $results) {
                         $repoName = $item.repository.nameWithOwner
-                        if (-not $uniqueRepos.ContainsKey($repoName)) {
+                        if ($repoName -and (-not $uniqueRepos.ContainsKey($repoName))) {
                             $uniqueRepos[$repoName] = $item.repository
                             Write-Host "  + Found: $repoName"
                             $stepCount++
