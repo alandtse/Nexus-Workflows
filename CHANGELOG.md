@@ -1,3 +1,10 @@
+## [1.2.1](https://github.com/alandtse/nexus-workflows/compare/v1.2.0...v1.2.1) (2026-04-19)
+
+
+### Bug Fixes
+
+* stabilize Nexus discovery CI pipeline and Pester 5 verification ([721021a](https://github.com/alandtse/nexus-workflows/commit/721021aa456e66c53917798c79752464f60d6e60))
+
 # [1.2.0](https://github.com/alandtse/nexus-workflows/compare/v1.1.0...v1.2.0) (2026-04-19)
 
 
