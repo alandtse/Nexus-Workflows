@@ -55,7 +55,7 @@ if (-not [string]::IsNullOrWhiteSpace($SearchQueries)) {
             if (-not [string]::IsNullOrWhiteSpace($Owner)) { $searchTerms += "user:$Owner" }
 
             $ghArgs = @("search", "code") + $searchTerms + @("--json", "repository", "--limit", "100")
-            
+
             try {
                 $searchResults = gh @ghArgs | Out-String
                 if ($searchResults) {
