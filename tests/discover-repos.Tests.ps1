@@ -63,16 +63,6 @@ Describe "discover-repos.ps1 (The Final Scoping Pass)" {
         $arr.Count | Should -Be 0
     }
 
-    It "Deduplicates repos when multiple owners are searched" {
-        # Both owners return the same repo; it should appear only once.
-        $mock = '[{"repository":{"nameWithOwner":"test-user/shared-repo"}}]'
-        $result = Test-DiscoveryLogic -Owner "test-user, other-owner" -Queries "test-query" -Mock $mock
-
-        $arr = @($result)
-        $arr.Count | Should -Be 1
-        $arr -contains "test-user/shared-repo" | Should -Be $true
-    }
-
     AfterAll {
         $env:MOCK_GH_RESULT = $null
         $env:UNEX_OWNER = $null

@@ -104,8 +104,7 @@ You can manage your repository list using either GitHub **Variables** or **Secre
 
 To configure these:
 
-- **Owners**: Add `UNEX_OWNERS` (Variable) with a comma-separated list of GitHub users/orgs to search for repositories (e.g., `alandtse,community-shaders`). Defaults to the repository owner. Add a `GH_TOKEN_MAP` secret entry for any owner that is not your personal account.
-- **Include**: Add `UNEX_INCLUDE_REPOS` with a comma-separated list of repos to forcibly include (e.g., `alandtse/manual-repo`).
+- **Include**: Add `UNEX_INCLUDE_REPOS` with a comma-separated list of repos to forcibly include (e.g., `alandtse/manual-repo`). Use this to add repositories from other users or organizations — auto-discovery only searches your personal account. If the repo belongs to a different owner, add a `GH_TOKEN_MAP` entry for that owner.
 - **Exclude**: Add `UNEX_EXCLUDE_REPOS` with a comma-separated list of repos to ignore (e.g., `alandtse/my-special-mod`).
 - **Decentralized skip**: Add a secret named `UNEX_SKIP` (with any value) in a mod repository itself to opt it out of centralized management.
 
@@ -220,7 +219,7 @@ Validates Nexus Mods credentials without refreshing them. Useful for testing cre
 This setup is highly flexible for organizations:
 
 1. **Native Org Secrets**: If your repositories are in a GitHub Organization, you can skip this tool and use **Organization Secrets** instead.
-2. **Hybrid Approach**: Use this tool if you have many repositories and want the **Auto-Discovery** benefit without manually managing the repository list in Organization settings.
+2. **Hybrid Approach**: Use this tool to distribute secrets to org repositories alongside your personal ones. Add the org repos to `UNEX_INCLUDE_REPOS` and create a PAT with repo secrets write access on those repos, then add it to `GH_TOKEN_MAP`.
 3. **Disable Distribution**: Simply disable or delete `distribute-secrets.yml` and use the central repository only for the **Reusable Workflows**.
 
 ## Security & PAT Scope

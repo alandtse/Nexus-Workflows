@@ -8,9 +8,7 @@ param(
 
 # Use Parameter values if provided, otherwise fallback to Environment Variables
 # This ensures reliability in CI environments where parameter binding may be inconsistent.
-# $Owner accepts a comma-separated list of owners (users and/or orgs).
 $Owner = if ($Owner) { $Owner } elseif ($env:UNEX_OWNER) { $env:UNEX_OWNER } else { "alandtse" }
-$ownerList = $Owner.Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ }
 $SearchQueries = if ($SearchQueries) { $SearchQueries } elseif ($env:UNEX_SEARCH_QUERIES) { $env:UNEX_SEARCH_QUERIES } else { "UNEX_NEXUSMODS_SESSION_COOKIE,NexusUploader,nexus-workflows" }
 $IncludeRepos = if ($IncludeRepos) { $IncludeRepos } else { $env:UNEX_INCLUDE_REPOS }
 $ExcludeRepos = if ($ExcludeRepos) { $ExcludeRepos } else { $env:UNEX_EXCLUDE_REPOS }
@@ -46,41 +44,35 @@ if (-not [string]::IsNullOrWhiteSpace($SearchQueries)) {
     $queries = $SearchQueries.Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ }
     foreach ($query in $queries) {
         foreach ($forkState in @($false, $true)) {
-            # Search each owner (user or org) separately. `user:` qualifier in
-            # `gh search code` matches both users and organizations.
-            $owners = if ($ownerList.Count -gt 0) { $ownerList } else { @("") }
-            foreach ($singleOwner in $owners) {
-                $searchTerms = @("path:.github/workflows", $query)
-                $ownerLabel = if ($singleOwner) { " in '$singleOwner'" } else { "" }
-                if ($forkState) {
-                    $searchTerms += "fork:true"
-                    Write-Info "Searching for: '$query'$ownerLabel (including forks)"
-                } else {
-                    Write-Info "Searching for: '$query'$ownerLabel (standard repos)"
-                }
+            $searchTerms = @("path:.github/workflows", $query)
+            if ($forkState) {
+                $searchTerms += "fork:true"
+                Write-Info "Searching for: '$query' (including forks)"
+            } else {
+                Write-Info "Searching for: '$query' (standard repos)"
+            }
 
-                if (-not [string]::IsNullOrWhiteSpace($singleOwner)) { $searchTerms += "user:$singleOwner" }
+            if (-not [string]::IsNullOrWhiteSpace($Owner)) { $searchTerms += "user:$Owner" }
 
-                $ghArgs = @("search", "code") + $searchTerms + @("--json", "repository", "--limit", "100")
+            $ghArgs = @("search", "code") + $searchTerms + @("--json", "repository", "--limit", "100")
 
-                try {
-                    $searchResults = gh @ghArgs | Out-String
-                    if ($searchResults) {
-                        $results = $searchResults | ConvertFrom-Json
-                        foreach ($item in $results) {
-                            $repoName = $item.repository.nameWithOwner
-                            if ($repoName -and (-not $uniqueRepos.ContainsKey($repoName))) {
-                                $uniqueRepos[$repoName] = $item.repository
-                                Write-Host "  + Found: $repoName"
-                            }
+            try {
+                $searchResults = gh @ghArgs | Out-String
+                if ($searchResults) {
+                    $results = $searchResults | ConvertFrom-Json
+                    foreach ($item in $results) {
+                        $repoName = $item.repository.nameWithOwner
+                        if ($repoName -and (-not $uniqueRepos.ContainsKey($repoName))) {
+                            $uniqueRepos[$repoName] = $item.repository
+                            Write-Host "  + Found: $repoName"
                         }
                     }
                 }
-                catch {
-                    Write-Warning "Search failed for query '$query' owner '$singleOwner': $_"
-                }
-                Start-Sleep -Seconds 1
             }
+            catch {
+                Write-Warning "Search failed for query '$query': $_"
+            }
+            if (-not $env:MOCK_GH_RESULT) { Start-Sleep -Seconds 1 }
         }
     }
 }
@@ -106,3 +98,4 @@ foreach ($key in $uniqueRepos.Keys) {
 Write-Info "Found $($finalRepos.Count) repositories."
 if ($null -eq $finalRepos -or $finalRepos.Count -eq 0) { "[]" }
 else { ConvertTo-Json -InputObject @($finalRepos | Sort-Object -Unique) -Compress }
+exit 0
