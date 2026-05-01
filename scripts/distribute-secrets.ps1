@@ -3,6 +3,7 @@ param(
     [string]$Cookie,
     [string]$ApiKey,
     [string]$ExcludeRepos,
+    [string]$TokenMapJson,
     [switch]$DryRun
 )
 
@@ -31,6 +32,28 @@ if ([string]::IsNullOrWhiteSpace($ReposJson) -or $ReposJson -eq "[]") {
 $repos = $ReposJson | ConvertFrom-Json
 $excludeList = if ($ExcludeRepos) { $ExcludeRepos.Split(',') | ForEach-Object { $_.Trim() } | Where-Object { $_ } } else { @() }
 
+# Token map: { "owner": "token", "*": "fallback-token" }
+# Falls back to existing $env:GH_TOKEN if no map / no entry.
+$tokenMap = @{}
+if (-not [string]::IsNullOrWhiteSpace($TokenMapJson)) {
+    try {
+        $parsed = $TokenMapJson | ConvertFrom-Json
+        foreach ($prop in $parsed.PSObject.Properties) {
+            $tokenMap[$prop.Name] = $prop.Value
+        }
+    } catch {
+        Write-Err "Failed to parse TokenMapJson: $_"
+    }
+}
+$fallbackToken = $env:GH_TOKEN
+
+function Get-OwnerToken {
+    param([string]$Owner)
+    if ($tokenMap.ContainsKey($Owner)) { return $tokenMap[$Owner] }
+    if ($tokenMap.ContainsKey('*'))    { return $tokenMap['*'] }
+    return $fallbackToken
+}
+
 Write-Output "----------------------------------------"
 if ($DryRun) {
     Write-Output "[TEST] DRY RUN - No secrets will be updated"
@@ -48,8 +71,17 @@ foreach ($repo in $repos) {
         continue
     }
 
+    $owner = ($repo -split '/')[0]
+    $token = Get-OwnerToken -Owner $owner
+    if ([string]::IsNullOrWhiteSpace($token)) {
+        Write-Err "No token available for owner '$owner' (set TokenMapJson entry, '*' fallback, or GH_TOKEN). Skipping $repo."
+        $failCount++
+        continue
+    }
+    $env:GH_TOKEN = $token
+
     if ($DryRun) {
-        Write-Output "  - Would update: $repo"
+        Write-Output "  - Would update repo: $repo"
         $successCount++
         continue
     }
@@ -103,8 +135,7 @@ foreach ($repo in $repos) {
     }
     catch {
         Write-Err "Failed to update API key on $repo"
-        $failCount++ # Treat partial failure as failure? Or success if cookie worked?
-                     # Let's count it as failure for visibility
+        $failCount++
     }
 }
 

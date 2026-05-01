@@ -71,7 +71,7 @@ gh repo create <your-username>/nexus-workflows --public --source=. --remote=orig
     4.  Expand **Cookies** in the left sidebar and select `https://www.nexusmods.com`.
     5.  Find the row named `nexusmods_session` and copy its **Value**.
 - `UNEX_APIKEY`: Your [Nexus Personal API key](https://www.nexusmods.com/settings/api-keys).
-- `GH_PAT_TOKEN`: A Personal Access Token used to update secrets in your other repositories.
+- `GH_PAT_TOKEN`: A Personal Access Token used to update secrets in your own repositories.
   - **Recommendation**: Use a [**Fine-Grained PAT**](https://github.com/settings/personal-access-tokens).
     - **Repository access**: "All repositories" (owned by you).
     - **Permissions**:
@@ -80,6 +80,10 @@ gh repo create <your-username>/nexus-workflows --public --source=. --remote=orig
       - `Secrets` (Read and Write)
       - `Workflows` (Read and Write)
   - **Alternative**: A [Personal Access Token (Classic)](https://github.com/settings/tokens) with `repo` and `workflow` scopes.
+- `GH_TOKEN_MAP` _(optional)_: A JSON object mapping additional owners (users or orgs) to their own PATs. Use this when you want to distribute secrets to repositories you do not personally own — for example, an organization you admin.
+  - Format: `{"org-name": "ghp_orgPAT", "another-user": "ghp_theirPAT"}`
+  - Each PAT only needs **Secrets (Read and Write)** permission scoped to the target repositories.
+  - `GH_PAT_TOKEN` is used as a fallback for any owner not listed in the map.
 
 3. **Test it:**
    - Go to Actions in your new private repository.
@@ -100,6 +104,7 @@ You can manage your repository list using either GitHub **Variables** or **Secre
 
 To configure these:
 
+- **Owners**: Add `UNEX_OWNERS` (Variable) with a comma-separated list of GitHub users/orgs to search for repositories (e.g., `alandtse,community-shaders`). Defaults to the repository owner. Add a `GH_TOKEN_MAP` secret entry for any owner that is not your personal account.
 - **Include**: Add `UNEX_INCLUDE_REPOS` with a comma-separated list of repos to forcibly include (e.g., `alandtse/manual-repo`).
 - **Exclude**: Add `UNEX_EXCLUDE_REPOS` with a comma-separated list of repos to ignore (e.g., `alandtse/my-special-mod`).
 - **Decentralized skip**: Add a secret named `UNEX_SKIP` (with any value) in a mod repository itself to opt it out of centralized management.
@@ -221,7 +226,7 @@ This setup is highly flexible for organizations:
 ## Security & PAT Scope
 
 > [!WARNING]
-> **High Privilege Token**: The `GH_PAT_TOKEN` requires `repo` and `workflow` scopes to discover and update secrets across your repositories. Treat this token with the same care as your primary GitHub password.
+> **High Privilege Token**: The `GH_PAT_TOKEN` requires `repo` and `workflow` scopes to discover and update secrets across your personal repositories. Any PAT stored in `GH_TOKEN_MAP` carries equivalent privilege for its target owner. Treat all of these tokens with the same care as your primary GitHub password.
 
 ### Security Best Practices
 
