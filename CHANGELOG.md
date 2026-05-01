@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/alandtse/nexus-workflows/compare/v1.3.0...v1.4.0) (2026-05-01)
+
+
+### Features
+
+* add GH_TOKEN_MAP for per-owner PAT routing to org repos ([370b4c8](https://github.com/alandtse/nexus-workflows/commit/370b4c81125d1a18d52a3481c8477743620945a9))
+
 # [1.3.0](https://github.com/alandtse/nexus-workflows/compare/v1.2.1...v1.3.0) (2026-05-01)
 
 
