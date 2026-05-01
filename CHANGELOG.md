@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/alandtse/nexus-workflows/compare/v1.2.1...v1.3.0) (2026-05-01)
+
+
+### Features
+
+* support multi-owner secret distribution via GH_TOKEN_MAP ([f9c2244](https://github.com/alandtse/nexus-workflows/commit/f9c22440da484b78d383594d37051e7fa1a874b0))
+
 ## [1.2.1](https://github.com/alandtse/nexus-workflows/compare/v1.2.0...v1.2.1) (2026-04-19)
 
 
