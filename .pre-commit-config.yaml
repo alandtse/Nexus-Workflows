@@ -37,5 +37,8 @@ ci:
   autoupdate_branch: ""
   autoupdate_commit_msg: "[pre-commit.ci] build: pre-commit autoupdate"
   autoupdate_schedule: weekly
-  skip: []
+  # pester-tests runs Windows PowerShell (`powershell`), which isn't available on
+  # pre-commit.ci's Linux runners. It still runs locally and in the Pester Tests
+  # GitHub Actions workflow.
+  skip: [pester-tests]
   submodules: false
