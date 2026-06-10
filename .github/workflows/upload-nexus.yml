@@ -167,8 +167,10 @@ jobs:
           }
         shell: pwsh
 
+      # Changelog is NOT gated on version-exists (so a re-run reposts it after the file is up) and is
+      # best-effort; the file upload is fatal. Both flaky, so both go through one retry helper.
       - name: Upload to Nexus Mods
-        if: steps.check_exists.outputs.EXISTS != 'true'
+        if: steps.check_exists.outputs.EXISTS != 'true' || inputs.changelog != ''
         env:
           UNEX_SESSION_COOKIE: ${{ secrets.UNEX_NEXUSMODS_SESSION_COOKIE }}
           UNEX_APIKEY: ${{ secrets.UNEX_APIKEY }}
@@ -179,45 +181,44 @@ jobs:
           UNEX_FILEVERSION: ${{ inputs.mod_version }}
           UNEX_FILEDESCRIPTION: ${{ inputs.file_description }}
           UNEX_PREVIOUSFILE: ${{ inputs.previous_file }}
-        run: |
-          $file = "${{ steps.find_file.outputs.FILE_PATH }}"
-
-          Write-Output "----------------------------------------"
-          Write-Output "[INFO] Uploading to Nexus Mods"
-          Write-Output "----------------------------------------"
-          Write-Output "Game: $env:UNEX_GAME"
-          Write-Output "Mod ID: $env:UNEX_MODID"
-          Write-Output "Version: $version"
-          Write-Output "File: $(Split-Path -Leaf $file)"
-          Write-Output "----------------------------------------"
-
-          unex upload $env:UNEX_MODID $file
-
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "[ERROR] Upload failed"
-            exit 1
-          }
-
-          Write-Output "[SUCCESS] Upload successful"
-
-      - name: Upload changelog
-        if: steps.check_exists.outputs.EXISTS != 'true' && inputs.changelog != ''
-        env:
-          UNEX_SESSION_COOKIE: ${{ secrets.UNEX_NEXUSMODS_SESSION_COOKIE }}
-          UNEX_APIKEY: ${{ secrets.UNEX_APIKEY }}
-          UNEX_GAME: ${{ inputs.nexus_game_id }}
-          UNEX_MODID: ${{ inputs.nexus_mod_id }}
-          UNEX_FILEVERSION: ${{ inputs.mod_version }}
           UNEX_CHANGELOG: ${{ inputs.changelog }}
         run: |
-          Write-Output "[INFO] Uploading changelog for version $env:UNEX_FILEVERSION..."
+          $ErrorActionPreference = 'Continue'
 
-          unex changelog $env:UNEX_FILEVERSION
+          # Run a flaky native command up to $Max times with linear backoff. Returns on success;
+          # throws once attempts are exhausted (caller decides fatal vs best-effort).
+          function Invoke-WithRetry {
+            param([Parameter(Mandatory)][scriptblock]$Command, [string]$Label = 'command', [int]$Max = 3)
+            for ($i = 1; $i -le $Max; $i++) {
+              Write-Output "[INFO] $Label attempt $i/$Max..."
+              try {
+                & $Command
+                if ($LASTEXITCODE -eq 0) { return }
+                Write-Warning "[WARN] $Label attempt $i failed (exit $LASTEXITCODE)"
+              } catch {
+                Write-Warning "[WARN] $Label attempt $i threw: $_"
+              }
+              if ($i -lt $Max) { Start-Sleep -Seconds (10 * $i) }
+            }
+            throw "$Label failed after $Max attempts"
+          }
 
-          if ($LASTEXITCODE -ne 0) {
-            Write-Warning "[WARN] Changelog upload failed"
-          } else {
-            Write-Output "[SUCCESS] Changelog uploaded"
+          $file = "${{ steps.find_file.outputs.FILE_PATH }}"
+
+          if ('${{ steps.check_exists.outputs.EXISTS }}' -ne 'true') {
+            Write-Output "[INFO] Uploading $(Split-Path -Leaf $file) to mod $env:UNEX_MODID ($env:UNEX_FILEVERSION)"
+            try { Invoke-WithRetry -Label 'Nexus upload' -Command { unex upload $env:UNEX_MODID $file } }
+            catch { Write-Error "[ERROR] $_"; exit 1 }
+            Write-Output "[SUCCESS] Upload successful"
+          }
+
+          if ($env:UNEX_CHANGELOG) {
+            try {
+              Invoke-WithRetry -Label 'Changelog' -Command { unex changelog $env:UNEX_FILEVERSION }
+              Write-Output "[SUCCESS] Changelog uploaded"
+            } catch {
+              Write-Output "::warning::$_ for $env:UNEX_FILEVERSION. The file uploaded fine; re-run this job to retry the changelog."
+            }
           }
 
       - name: Summary
