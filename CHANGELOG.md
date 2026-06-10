@@ -1,3 +1,10 @@
+## [1.4.1](https://github.com/alandtse/nexus-workflows/compare/v1.4.0...v1.4.1) (2026-06-10)
+
+
+### Bug Fixes
+
+* make Nexus changelog upload retriable ([#4](https://github.com/alandtse/nexus-workflows/issues/4)) ([26905e7](https://github.com/alandtse/nexus-workflows/commit/26905e7bd05bf0a2ec6488ce365527215cc71acf))
+
 # [1.4.0](https://github.com/alandtse/nexus-workflows/compare/v1.3.0...v1.4.0) (2026-05-01)
 
 
