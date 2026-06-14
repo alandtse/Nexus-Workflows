@@ -1,0 +1,130 @@
+name: Upload to Nexus Mods (official action)
+
+# Reusable upload via the OFFICIAL Nexus-Mods/upload-action (Nexus public API).
+# Unlike upload-nexus.yml (BUTR.NexusUploader / unex), this exposes file_category
+# and file groups, so it can publish OPTIONAL / grouped files. Pick by capability:
+#   - unex (upload-nexus.yml): session-cookie upload, MAIN files only.
+#   - this:                    API upload by file_group_id, any category, archiving.
+# The file_group_id is required and is minted by uploading the file once on the
+# website (Files tab -> "API Info", or the Manage Files edit menu).
+
+on:
+  workflow_call:
+    inputs:
+      file_group_id:
+        description: "Nexus file group ID to upload this version into (required; mint by uploading once on the website)"
+        required: true
+        type: string
+      version:
+        description: "Version string for the uploaded file (e.g. 1.7.1)"
+        required: true
+        type: string
+      artifact_name:
+        description: "Name of a GitHub workflow artifact to download (takes precedence over tag_name)"
+        required: false
+        type: string
+        default: ""
+      tag_name:
+        description: "GitHub release tag to download the file from (when artifact_name is empty)"
+        required: false
+        type: string
+        default: ""
+      artifact_pattern:
+        description: "Glob to select the file from the download when several are present (e.g. ShaderCache-VR-*.7z). Defaults to the first archive found."
+        required: false
+        type: string
+        default: ""
+      file_category:
+        description: "Nexus file category: main | update | optional | miscellaneous | old"
+        required: false
+        type: string
+        default: "main"
+      display_name:
+        description: "Display name for the file on Nexus (defaults to the file name)"
+        required: false
+        type: string
+        default: ""
+      description:
+        description: "File description shown on Nexus"
+        required: false
+        type: string
+        default: ""
+      archive_existing_file:
+        description: "Archive the current file in the group when this new version uploads"
+        required: false
+        type: boolean
+        default: false
+      dry_run:
+        description: "Resolve and report the planned upload but do not call Nexus"
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      UNEX_APIKEY:
+        description: "Nexus Mods personal API key"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    name: Upload to Nexus (official)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download workflow artifact
+        if: inputs.artifact_name != ''
+        uses: actions/download-artifact@v6
+        with:
+          name: ${{ inputs.artifact_name }}
+          path: ./nexus-file
+
+      - name: Download release asset
+        if: inputs.artifact_name == '' && inputs.tag_name != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p ./nexus-file
+          pattern='${{ inputs.artifact_pattern }}'
+          if [ -n "$pattern" ]; then
+            gh release download "${{ inputs.tag_name }}" --repo "$GITHUB_REPOSITORY" --pattern "$pattern" --dir ./nexus-file || true
+          else
+            gh release download "${{ inputs.tag_name }}" --repo "$GITHUB_REPOSITORY" --pattern "*.7z" --pattern "*.zip" --pattern "*.rar" --dir ./nexus-file || true
+          fi
+
+      - name: Find file
+        id: find
+        run: |
+          pattern='${{ inputs.artifact_pattern }}'
+          if [ -n "$pattern" ]; then
+            file=$(find ./nexus-file -maxdepth 2 -type f -name "$pattern" | sort | head -n1)
+          else
+            file=$(find ./nexus-file -maxdepth 2 -type f \( -name '*.7z' -o -name '*.zip' -o -name '*.rar' \) | sort | head -n1)
+          fi
+          if [ -z "$file" ]; then
+            echo "::warning::No file found to upload (artifact_name='${{ inputs.artifact_name }}' tag='${{ inputs.tag_name }}' pattern='${pattern}'); skipping."
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Found file: $file"
+            echo "file=$file" >> "$GITHUB_OUTPUT"
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Report planned upload
+        if: steps.find.outputs.found == 'true'
+        run: |
+          echo "Nexus upload (official): group ${{ inputs.file_group_id }} | category ${{ inputs.file_category }} | v${{ inputs.version }} | $(basename '${{ steps.find.outputs.file }}')"
+          if [ "${{ inputs.dry_run }}" = "true" ]; then echo "Dry run: skipping actual upload."; fi
+
+      - name: Upload to Nexus Mods
+        if: steps.find.outputs.found == 'true' && inputs.dry_run != true
+        uses: Nexus-Mods/upload-action@0bf670d75d46988c176c9bfacc94ca0144e0fe3f # v1.0.0-beta.7
+        with:
+          api_key: ${{ secrets.UNEX_APIKEY }}
+          file_group_id: ${{ inputs.file_group_id }}
+          filename: ${{ steps.find.outputs.file }}
+          version: ${{ inputs.version }}
+          file_category: ${{ inputs.file_category }}
+          display_name: ${{ inputs.display_name }}
+          description: ${{ inputs.description }}
+          archive_existing_file: ${{ inputs.archive_existing_file }}
