@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/alandtse/nexus-workflows/compare/v1.4.1...v1.5.0) (2026-06-14)
+
+
+### Features
+
+* add official Nexus upload reusable workflow (optional files / file groups) ([#5](https://github.com/alandtse/nexus-workflows/issues/5)) ([07dbd58](https://github.com/alandtse/nexus-workflows/commit/07dbd58f8723bc8780450d8a472580229fe5e9ba))
+
 ## [1.4.1](https://github.com/alandtse/nexus-workflows/compare/v1.4.0...v1.4.1) (2026-06-10)
 
 
