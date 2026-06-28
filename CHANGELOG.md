@@ -1,3 +1,10 @@
+## [1.5.1](https://github.com/alandtse/nexus-workflows/compare/v1.5.0...v1.5.1) (2026-06-28)
+
+
+### Bug Fixes
+
+* persist refreshed Nexus cookie back to the source secret ([#7](https://github.com/alandtse/nexus-workflows/issues/7)) ([2162fd9](https://github.com/alandtse/nexus-workflows/commit/2162fd91180441086388694e5ff8de2fce8b44d7))
+
 # [1.5.0](https://github.com/alandtse/nexus-workflows/compare/v1.4.1...v1.5.0) (2026-06-14)
 
 
