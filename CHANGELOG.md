@@ -1,3 +1,10 @@
+## [1.5.2](https://github.com/alandtse/nexus-workflows/compare/v1.5.1...v1.5.2) (2026-07-06)
+
+
+### Bug Fixes
+
+* gate Nexus changelog repost on version-exists to prevent duplicate entries ([#8](https://github.com/alandtse/nexus-workflows/issues/8)) ([2b63b8e](https://github.com/alandtse/nexus-workflows/commit/2b63b8ea2ee1834b63c42f582759a9624221d1e2))
+
 ## [1.5.1](https://github.com/alandtse/nexus-workflows/compare/v1.5.0...v1.5.1) (2026-06-28)
 
 
