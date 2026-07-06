@@ -167,10 +167,17 @@ jobs:
           }
         shell: pwsh
 
-      # Changelog is NOT gated on version-exists (so a re-run reposts it after the file is up) and is
-      # best-effort; the file upload is fatal. Both flaky, so both go through one retry helper.
+      # Changelog posting is gated on version-exists when check_existing is enabled: Nexus's
+      # "save documentation" endpoint (unex changelog) *appends* to the existing changelog rather
+      # than replacing it, so re-running after a version is already up reposts and duplicates that
+      # version's entry (see alandtse/open-shaders#198, where this was independently discovered and
+      # worked around externally). The tradeoff: if a prior run uploaded the file but the changelog
+      # post itself failed, a check_existing re-run will no longer retry the changelog (EXISTS is
+      # now true) — use check_existing: false to force a changelog-only retry in that case.
+      # When check_existing is disabled, EXISTS is never computed and this preserves legacy
+      # behavior (always attempt both).
       - name: Upload to Nexus Mods
-        if: steps.check_exists.outputs.EXISTS != 'true' || inputs.changelog != ''
+        if: steps.check_exists.outputs.EXISTS != 'true' || (inputs.changelog != '' && inputs.check_existing != true)
         env:
           UNEX_SESSION_COOKIE: ${{ secrets.UNEX_NEXUSMODS_SESSION_COOKIE }}
           UNEX_APIKEY: ${{ secrets.UNEX_APIKEY }}
