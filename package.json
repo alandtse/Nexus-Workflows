@@ -1,6 +1,6 @@
 {
   "name": "nexus-workflows",
-  "version": "1.5.2",
+  "version": "1.6.0",
   "description": "Centralized Nexus Mods workflow and secret management",
   "repository": {
     "type": "git",

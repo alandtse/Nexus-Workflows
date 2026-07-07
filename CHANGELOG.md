@@ -1,3 +1,10 @@
+# [1.6.0](https://github.com/alandtse/nexus-workflows/compare/v1.5.2...v1.6.0) (2026-07-07)
+
+
+### Features
+
+* convert changelog BBCode ([#9](https://github.com/alandtse/nexus-workflows/issues/9)) ([f662f70](https://github.com/alandtse/nexus-workflows/commit/f662f7013950a83a6535100db417ad11c55c65bf))
+
 ## [1.5.2](https://github.com/alandtse/nexus-workflows/compare/v1.5.1...v1.5.2) (2026-07-06)
 
 
