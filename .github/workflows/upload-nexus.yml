@@ -158,8 +158,25 @@ jobs:
           $mdPath = Join-Path $env:RUNNER_TEMP 'changelog.md'
           $bbPath = Join-Path $env:RUNNER_TEMP 'changelog.bbcode'
           Set-Content -Path $mdPath -Value $env:CHANGELOG_MD -NoNewline
-          markdown_to_bbcodenm -i $mdPath -o $bbPath
-          $bbcode = Get-Content -Path $bbPath -Raw
+
+          # Best-effort: a conversion failure must not block the (unrelated) file upload below,
+          # so fall back to the raw Markdown rather than throwing — same as before this
+          # conversion step existed — but loudly, so a broken conversion isn't silently posted
+          # as an empty changelog.
+          $bbcode = $env:CHANGELOG_MD
+          try {
+            markdown_to_bbcodenm -i $mdPath -o $bbPath
+            if ($LASTEXITCODE -ne 0 -or -not (Test-Path $bbPath)) {
+              throw "markdown_to_bbcodenm exited $LASTEXITCODE"
+            }
+            $converted = Get-Content -Path $bbPath -Raw
+            if ([string]::IsNullOrWhiteSpace($converted)) {
+              throw "converted output is empty"
+            }
+            $bbcode = $converted
+          } catch {
+            Write-Output "::warning::Markdown-to-BBCode conversion failed ($_); posting the raw Markdown changelog instead."
+          }
 
           $delim = "BBCODE_EOF_$([guid]::NewGuid().ToString('N'))"
           Add-Content -Path $env:GITHUB_OUTPUT -Value "bbcode<<$delim"
