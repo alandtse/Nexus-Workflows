@@ -137,6 +137,33 @@ jobs:
         with:
           nexus-session-cookie: ${{ secrets.UNEX_NEXUSMODS_SESSION_COOKIE }}
 
+      # Nexus's changelog field renders BBCode, not Markdown, so a changelog sourced from a
+      # GitHub release body (Markdown) shows up as literal "**bold**"/"- list" text unless
+      # converted first. BUTR also maintains this converter, targeting Nexus's specific BBCode
+      # dialect (spoilers, alignment, etc.) rather than a generic flavor.
+      - name: Setup Markdown-to-BBCode converter
+        if: inputs.changelog != ''
+        run: dotnet tool install -g Converter.MarkdownToBBCodeNM.Tool
+        shell: pwsh
+
+      - name: Convert changelog to Nexus BBCode
+        id: changelog_bbcode
+        if: inputs.changelog != ''
+        env:
+          CHANGELOG_MD: ${{ inputs.changelog }}
+        run: |
+          $mdPath = Join-Path $env:RUNNER_TEMP 'changelog.md'
+          $bbPath = Join-Path $env:RUNNER_TEMP 'changelog.bbcode'
+          Set-Content -Path $mdPath -Value $env:CHANGELOG_MD -NoNewline
+          markdown_to_bbcodenm -i $mdPath -o $bbPath
+          $bbcode = Get-Content -Path $bbPath -Raw
+
+          $delim = "BBCODE_EOF_$([guid]::NewGuid().ToString('N'))"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "bbcode<<$delim"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value $bbcode
+          Add-Content -Path $env:GITHUB_OUTPUT -Value $delim
+        shell: pwsh
+
       - name: Check if version already exists on Nexus
         id: check_exists
         if: inputs.check_existing
@@ -188,7 +215,7 @@ jobs:
           UNEX_FILEVERSION: ${{ inputs.mod_version }}
           UNEX_FILEDESCRIPTION: ${{ inputs.file_description }}
           UNEX_PREVIOUSFILE: ${{ inputs.previous_file }}
-          UNEX_CHANGELOG: ${{ inputs.changelog }}
+          UNEX_CHANGELOG: ${{ steps.changelog_bbcode.outputs.bbcode }}
         run: |
           $ErrorActionPreference = 'Continue'
 
