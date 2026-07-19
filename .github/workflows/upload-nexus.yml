@@ -184,7 +184,7 @@ jobs:
           Add-Content -Path $env:GITHUB_OUTPUT -Value $delim
         shell: pwsh
 
-      - name: Check if version already exists on Nexus
+      - name: Check existing file and changelog on Nexus
         id: check_exists
         if: inputs.check_existing
         env:
@@ -193,38 +193,54 @@ jobs:
           UNEX_MODID: ${{ inputs.nexus_mod_id }}
         run: |
           $version = "${{ inputs.mod_version }}"
-          Write-Output "[INFO] Checking if version $version exists on Nexus..."
+          Write-Output "[INFO] Checking file and changelog state for version $version on Nexus..."
 
           $apiUrl = "https://api.nexusmods.com/v1/games/$env:UNEX_GAME/mods/$env:UNEX_MODID/files.json"
 
           try {
             $response = Invoke-RestMethod -Uri $apiUrl -Headers @{ "apikey" = "$env:UNEX_APIKEY" }
-            $existingVersions = $response.files.version
+            $matchingFiles = $response.files | Where-Object { $_.version -eq $version }
 
-            if ($existingVersions -contains $version) {
-              Write-Output "::notice::[INFO] Version $version already exists on Nexus. Skipping upload."
-              Write-Output "EXISTS=true" >> $env:GITHUB_OUTPUT
+            if ($matchingFiles) {
+              Write-Output "::notice::[INFO] Version $version already exists on Nexus. Skipping file upload."
+              Write-Output "FILE_EXISTS=true" >> $env:GITHUB_OUTPUT
             } else {
               Write-Output "[INFO] Version $version not found on Nexus."
-              Write-Output "EXISTS=false" >> $env:GITHUB_OUTPUT
+              Write-Output "FILE_EXISTS=false" >> $env:GITHUB_OUTPUT
+            }
+
+            # A file's changelog is independent of whether the file itself exists: the
+            # official-API uploader (upload-nexus-official.yml) can create the file entry
+            # without ever touching changelog_html, since that endpoint has no changelog
+            # field. Gating the changelog re-post on file existence would wrongly skip a
+            # changelog that was never actually posted.
+            $hasChangelog = $matchingFiles | Where-Object { $_.changelog_html } | Select-Object -First 1
+            if ($hasChangelog) {
+              Write-Output "::notice::[INFO] Version $version already has a changelog on Nexus. Skipping changelog post."
+              Write-Output "CHANGELOG_EXISTS=true" >> $env:GITHUB_OUTPUT
+            } else {
+              Write-Output "[INFO] Version $version has no changelog on Nexus yet."
+              Write-Output "CHANGELOG_EXISTS=false" >> $env:GITHUB_OUTPUT
             }
           } catch {
             Write-Warning "[WARN] Failed to check existing versions: $_"
-            Write-Output "EXISTS=false" >> $env:GITHUB_OUTPUT
+            Write-Output "FILE_EXISTS=false" >> $env:GITHUB_OUTPUT
+            Write-Output "CHANGELOG_EXISTS=false" >> $env:GITHUB_OUTPUT
           }
         shell: pwsh
 
-      # Changelog posting is gated on version-exists when check_existing is enabled: Nexus's
-      # "save documentation" endpoint (unex changelog) *appends* to the existing changelog rather
-      # than replacing it, so re-running after a version is already up reposts and duplicates that
-      # version's entry (see alandtse/open-shaders#198, where this was independently discovered and
-      # worked around externally). The tradeoff: if a prior run uploaded the file but the changelog
-      # post itself failed, a check_existing re-run will no longer retry the changelog (EXISTS is
-      # now true) — use check_existing: false to force a changelog-only retry in that case.
-      # When check_existing is disabled, EXISTS is never computed and this preserves legacy
-      # behavior (always attempt both).
+      # File upload and changelog post are gated independently: a version's file can be
+      # uploaded through a different path entirely (e.g. the official-API uploader in
+      # upload-nexus-official.yml, which cannot set a changelog), so FILE_EXISTS is not
+      # evidence the changelog was ever posted. Nexus's "save documentation" endpoint
+      # (unex changelog) *appends* rather than replaces, so re-posting an already-present
+      # changelog duplicates that version's entry (alandtse/open-shaders#198) --
+      # CHANGELOG_EXISTS prevents that without suppressing a legitimate changelog-only
+      # retry, and without the step re-attempting a file upload that already succeeded via
+      # a different uploader. When check_existing is disabled, neither output is computed
+      # and this preserves legacy behavior (always attempt both).
       - name: Upload to Nexus Mods
-        if: steps.check_exists.outputs.EXISTS != 'true' || (inputs.changelog != '' && inputs.check_existing != true)
+        if: steps.check_exists.outputs.FILE_EXISTS != 'true' || (inputs.changelog != '' && steps.check_exists.outputs.CHANGELOG_EXISTS != 'true')
         env:
           UNEX_SESSION_COOKIE: ${{ secrets.UNEX_NEXUSMODS_SESSION_COOKIE }}
           UNEX_APIKEY: ${{ secrets.UNEX_APIKEY }}
@@ -259,14 +275,14 @@ jobs:
 
           $file = "${{ steps.find_file.outputs.FILE_PATH }}"
 
-          if ('${{ steps.check_exists.outputs.EXISTS }}' -ne 'true') {
+          if ('${{ steps.check_exists.outputs.FILE_EXISTS }}' -ne 'true') {
             Write-Output "[INFO] Uploading $(Split-Path -Leaf $file) to mod $env:UNEX_MODID ($env:UNEX_FILEVERSION)"
             try { Invoke-WithRetry -Label 'Nexus upload' -Command { unex upload $env:UNEX_MODID $file } }
             catch { Write-Error "[ERROR] $_"; exit 1 }
             Write-Output "[SUCCESS] Upload successful"
           }
 
-          if ($env:UNEX_CHANGELOG) {
+          if ($env:UNEX_CHANGELOG -and '${{ steps.check_exists.outputs.CHANGELOG_EXISTS }}' -ne 'true') {
             try {
               Invoke-WithRetry -Label 'Changelog' -Command { unex changelog $env:UNEX_FILEVERSION }
               Write-Output "[SUCCESS] Changelog uploaded"
