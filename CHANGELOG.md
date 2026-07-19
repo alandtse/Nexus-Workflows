@@ -1,3 +1,10 @@
+## [1.6.1](https://github.com/alandtse/nexus-workflows/compare/v1.6.0...v1.6.1) (2026-07-19)
+
+
+### Bug Fixes
+
+* decouple file and changelog existence checks ([#10](https://github.com/alandtse/nexus-workflows/issues/10)) ([ca73623](https://github.com/alandtse/nexus-workflows/commit/ca736232a808e39837945925ae92cba2fd54c587))
+
 # [1.6.0](https://github.com/alandtse/nexus-workflows/compare/v1.5.2...v1.6.0) (2026-07-07)
 
 
