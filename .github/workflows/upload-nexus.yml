@@ -52,7 +52,8 @@ on:
         default: false
     secrets:
       UNEX_NEXUSMODS_SESSION_COOKIE:
-        required: true
+        description: "Unused since BUTR.NexusUploader 4.0.0 removed session-cookie auth; kept optional so existing callers don't need to drop it."
+        required: false
       UNEX_APIKEY:
         required: true
 
@@ -131,11 +132,6 @@ jobs:
 
       - name: Setup UNEX
         uses: alandtse/nexus-workflows/.github/actions/setup-unex@main
-
-      - name: Refresh Nexus session cookie
-        uses: alandtse/nexus-workflows/.github/actions/refresh-nexus@main
-        with:
-          nexus-session-cookie: ${{ secrets.UNEX_NEXUSMODS_SESSION_COOKIE }}
 
       # Nexus's changelog field renders BBCode, not Markdown, so a changelog sourced from a
       # GitHub release body (Markdown) shows up as literal "**bold**"/"- list" text unless
@@ -242,7 +238,6 @@ jobs:
       - name: Upload to Nexus Mods
         if: steps.check_exists.outputs.FILE_EXISTS != 'true' || (inputs.changelog != '' && steps.check_exists.outputs.CHANGELOG_EXISTS != 'true')
         env:
-          UNEX_SESSION_COOKIE: ${{ secrets.UNEX_NEXUSMODS_SESSION_COOKIE }}
           UNEX_APIKEY: ${{ secrets.UNEX_APIKEY }}
           UNEX_GAME: ${{ inputs.nexus_game_id }}
           UNEX_MODID: ${{ inputs.nexus_mod_id }}
