@@ -1,3 +1,10 @@
+## [1.6.2](https://github.com/alandtse/nexus-workflows/compare/v1.6.1...v1.6.2) (2026-07-31)
+
+
+### Bug Fixes
+
+* drop dead session-cookie refresh step ([#11](https://github.com/alandtse/nexus-workflows/issues/11)) ([1b3453b](https://github.com/alandtse/nexus-workflows/commit/1b3453b563cf520521682572f050ac292da414ee))
+
 ## [1.6.1](https://github.com/alandtse/nexus-workflows/compare/v1.6.0...v1.6.1) (2026-07-19)
 
 
