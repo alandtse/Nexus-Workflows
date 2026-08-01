@@ -1,6 +1,6 @@
 # AI Agent Instructions for Nexus Workflows
 
-This project is optimized for AI assistance. These instructions are shared across various agent formats (.cursorrules, .claude/CLAUDE.md, etc.) via symlinks.
+This project is optimized for AI assistance. These instructions are shared across various agent formats (AGENTS.md, .cursorrules, .claude/CLAUDE.md, etc.) via symlinks.
 
 ## General Principles
 
