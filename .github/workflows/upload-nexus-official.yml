@@ -50,7 +50,17 @@ on:
         type: string
         default: ""
       archive_existing_file:
-        description: "Archive the current file in the group when this new version uploads"
+        description: "Archive (hide) the current file in the group when this new version uploads. Leave false to keep it visible, marked as an old version -- Nexus does this automatically for any version this doesn't archive."
+        required: false
+        type: boolean
+        default: false
+      update_mod_version:
+        description: "Update the mod's own displayed version to match this file's version"
+        required: false
+        type: boolean
+        default: false
+      primary_mod_manager_download:
+        description: "Make this file the default download for mod managers"
         required: false
         type: boolean
         default: false
@@ -89,7 +99,7 @@ jobs:
     steps:
       - name: Download workflow artifact
         if: inputs.artifact_name != ''
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v8
         with:
           name: ${{ inputs.artifact_name }}
           path: ./nexus-file
@@ -181,13 +191,18 @@ jobs:
 
       - name: Upload to Nexus Mods
         if: steps.find.outputs.found == 'true' && inputs.dry_run != true && steps.check.outputs.exists != 'true'
-        uses: Nexus-Mods/upload-action@0bf670d75d46988c176c9bfacc94ca0144e0fe3f # v1.0.0-beta.7
+        # beta.8 renamed file_group_id/file_category/archive_existing_file to
+        # file_id/category/archive_existing_version (same numeric ID). This
+        # workflow's own inputs are unchanged.
+        uses: Nexus-Mods/upload-action@c96019556046053aa26044b44396cd38929daf23 # v1.0.0-beta.10
         with:
           api_key: ${{ secrets.UNEX_APIKEY }}
-          file_group_id: ${{ inputs.file_group_id }}
+          file_id: ${{ inputs.file_group_id }}
           filename: ${{ steps.find.outputs.file }}
           version: ${{ inputs.version }}
-          file_category: ${{ inputs.file_category }}
+          category: ${{ inputs.file_category }}
           display_name: ${{ inputs.display_name }}
           description: ${{ inputs.description }}
-          archive_existing_file: ${{ inputs.archive_existing_file }}
+          archive_existing_version: ${{ inputs.archive_existing_file }}
+          update_mod_version: ${{ inputs.update_mod_version }}
+          primary_mod_manager_download: ${{ inputs.primary_mod_manager_download }}
