@@ -30,3 +30,32 @@ jobs:
         shell: pwsh
         run: |
           Invoke-Pester -Path ./tests/discover-repos.Tests.ps1 -Output Detailed
+
+  changelog-text:
+    name: Changelog to plain text
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Unit tests
+        shell: pwsh
+        run: python -m unittest discover -s tests -p "test_*.py"
+
+      - name: Run the composite action
+        id: reduce
+        uses: ./.github/actions/changelog-text
+        with:
+          changelog: |
+            ## Bug Fixes
+
+            * **wind:** preserve buffers ([#726](https://example.com/issues/726))
+
+      - name: Assert plain-text output
+        shell: pwsh
+        env:
+          ACTUAL: ${{ steps.reduce.outputs.text }}
+        run: |
+          $expected = "Bug Fixes`n`n- wind: preserve buffers https://example.com/issues/726"
+          $actual = ($env:ACTUAL -replace "`r`n", "`n").Trim()
+          if ($actual -ne $expected) { throw "Unexpected changelog text:`n$actual" }
