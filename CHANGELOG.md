@@ -1,3 +1,15 @@
+# [1.7.0](https://github.com/alandtse/nexus-workflows/compare/v1.6.2...v1.7.0) (2026-09-21)
+
+
+### Bug Fixes
+
+* **changelog:** default to plain text ([#16](https://github.com/alandtse/nexus-workflows/issues/16)) ([e2231c4](https://github.com/alandtse/nexus-workflows/commit/e2231c45886627ce61d2b3ec415da587e1b715e4))
+
+
+### Features
+
+* shared release-nexus reusable for mod repos ([#15](https://github.com/alandtse/nexus-workflows/issues/15)) ([0c53c00](https://github.com/alandtse/nexus-workflows/commit/0c53c009e688ff37b1af2c6fc2a78d74bdcb2449))
+
 ## [1.6.2](https://github.com/alandtse/nexus-workflows/compare/v1.6.1...v1.6.2) (2026-07-31)
 
 
