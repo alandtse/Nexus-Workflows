@@ -35,6 +35,11 @@ on:
         required: false
         type: string
         default: ""
+      changelog_format:
+        description: "How to post the changelog: 'text' posts it exactly as given (the caller supplies plain text); 'bbcode' converts Markdown to Nexus BBCode first."
+        required: false
+        type: string
+        default: "text"
       file_description:
         description: "Description for the file on Nexus"
         required: false
@@ -133,18 +138,16 @@ jobs:
       - name: Setup UNEX
         uses: alandtse/nexus-workflows/.github/actions/setup-unex@main
 
-      # Nexus's changelog field renders BBCode, not Markdown, so a changelog sourced from a
-      # GitHub release body (Markdown) shows up as literal "**bold**"/"- list" text unless
-      # converted first. BUTR also maintains this converter, targeting Nexus's specific BBCode
-      # dialect (spoilers, alignment, etc.) rather than a generic flavor.
+      # Opt-in (changelog_format: bbcode): convert a Markdown changelog to Nexus BBCode with
+      # BUTR's converter. The default posts the changelog exactly as given.
       - name: Setup Markdown-to-BBCode converter
-        if: inputs.changelog != ''
+        if: inputs.changelog != '' && inputs.changelog_format == 'bbcode'
         run: dotnet tool install -g Converter.MarkdownToBBCodeNM.Tool
         shell: pwsh
 
       - name: Convert changelog to Nexus BBCode
         id: changelog_bbcode
-        if: inputs.changelog != ''
+        if: inputs.changelog != '' && inputs.changelog_format == 'bbcode'
         env:
           CHANGELOG_MD: ${{ inputs.changelog }}
           # The tool targets an older .NET runtime than the 8.x SDK setup-unex installs;
@@ -246,7 +249,7 @@ jobs:
           UNEX_FILEVERSION: ${{ inputs.mod_version }}
           UNEX_FILEDESCRIPTION: ${{ inputs.file_description }}
           UNEX_PREVIOUSFILE: ${{ inputs.previous_file }}
-          UNEX_CHANGELOG: ${{ steps.changelog_bbcode.outputs.bbcode }}
+          UNEX_CHANGELOG: ${{ inputs.changelog_format == 'bbcode' && steps.changelog_bbcode.outputs.bbcode || inputs.changelog }}
         run: |
           $ErrorActionPreference = 'Continue'
 
