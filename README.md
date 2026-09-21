@@ -137,6 +137,7 @@ jobs:
       # tag_name: v${{ needs.build.outputs.new_release_version }}
       mod_version: ${{ needs.build.outputs.new_release_version }}
       changelog: ${{ needs.build.outputs.new_release_notes }}
+      # release notes are Markdown; the default (text) reduces them to plain text
     secrets:
       UNEX_NEXUSMODS_SESSION_COOKIE: ${{ secrets.UNEX_NEXUSMODS_SESSION_COOKIE }}
       UNEX_APIKEY: ${{ secrets.UNEX_APIKEY }}
@@ -182,6 +183,7 @@ Reusable workflow for uploading mods.
 
 - **Inputs**: game_id, mod_id, version, changelog, etc.
 - **check_existing**: (Optional) Check Nexus API and skip if version exists (default: false)
+- **changelog_format**: (Optional) `text` (default) reduces a Markdown changelog (for example a GitHub release body) to plain text and leaves plain text unchanged; `raw` posts it exactly as given; `bbcode` converts Markdown to Nexus BBCode
 - **artifact_name**: (Optional) Name of the GitHub artifact to download
 - **tag_name**: (Optional) GitHub Release tag to download from (if artifact_name is empty)
 - **Automatic**: Refreshes cookie before upload

@@ -1,0 +1,30 @@
+name: Changelog to plain text
+description: Reduce a Markdown changelog to plain text for Nexus. Text that is already plain is left unchanged.
+
+inputs:
+  changelog:
+    description: "Changelog text, Markdown or plain"
+    required: true
+
+outputs:
+  text:
+    description: "The changelog as plain text"
+    value: ${{ steps.reduce.outputs.text }}
+
+runs:
+  using: composite
+  steps:
+    - name: Reduce to plain text
+      id: reduce
+      shell: pwsh
+      env:
+        CHANGELOG: ${{ inputs.changelog }}
+      run: |
+        $outPath = Join-Path $env:RUNNER_TEMP 'changelog.txt'
+        $env:OUTPUT_FILE = $outPath
+        python "${{ github.action_path }}/changelog_to_text.py"
+        if ($LASTEXITCODE -ne 0) { throw "changelog_to_text.py exited $LASTEXITCODE" }
+        $delim = "TEXT_EOF_$([guid]::NewGuid().ToString('N'))"
+        Add-Content -Path $env:GITHUB_OUTPUT -Value "text<<$delim"
+        Add-Content -Path $env:GITHUB_OUTPUT -Value (Get-Content -Path $outPath -Raw)
+        Add-Content -Path $env:GITHUB_OUTPUT -Value $delim
